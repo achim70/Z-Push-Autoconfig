@@ -49,6 +49,13 @@ class ZPushAutodiscover {
         }
         if (stripos($_SERVER["REQUEST_METHOD"], "GET") !== false) {
             ZLog::Write(LOGLEVEL_INFO, "ZPushAutodiscover::DoZPushAutodiscover(): GET request for autodiscover.");
+            ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover::DoZPushAutodiscover(): URI %s", $_SERVER["REQUEST_URI"]));
+            if (substr_compare($_SERVER["REQUEST_URI"], "/mail/config-v1.1.xml", 0, 21) == 0) {
+                ZLog::Write(LOGLEVEL_INFO, "Process autoconfigure");
+                $response = self::$instance->createAutoconfigResponse();
+                self::$instance->sendResponse($response);
+                return;
+            }
             try {
                 self::$instance->getLogin();
             }
@@ -260,6 +267,173 @@ class ZPushAutodiscover {
     }
 
     /**
+     * Creates the response for autoconfiguration requests.
+     *
+     * @access private
+     *
+     * @return SimpleXMLElement
+     */
+    private function createAutoconfigResponse() {
+        $xml = file_get_contents('configResponse.xml');
+        $response = new SimpleXMLElement($xml);
+        $response->emailProvider->addAttribute('id', AUTO_DOMAIN);
+        $response->emailProvider->domain = AUTO_DOMAIN;
+        $response->emailProvider->displayName = AUTO_DISPLAYNAME;
+        $response->emailProvider->displayShortName = AUTO_SHORTNAME;
+
+        // Add POP3 server configuration here, if it is the preferred one
+        if (!AUTO_IMAP_PREFERENCE) {
+            if (defined('AUTO_POP3_HOST')) {
+                ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): POP3 URL: '%s'", AUTO_POP3_HOST));
+                $this->addIncomingServer($response->emailProvider, 'POP3');
+            }
+        }
+
+        // Add IMAP server configuration
+        if (defined('AUTO_IMAP_HOST')) {
+            ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): IMAP URL: '%s'", AUTO_IMAP_HOST));
+            $this->addIncomingServer($response->emailProvider, 'IMAP');
+        }
+
+        // Add POP3 server configuration here, if IMAP is the preferred one
+        if (AUTO_IMAP_PREFERENCE) {
+            if (defined('AUTO_POP3_HOST')) {
+                ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): POP3 URL: '%s'", AUTO_POP3_HOST));
+                $this->addIncomingServer($response->emailProvider, 'POP3');
+            }
+        }
+
+        // Add SMTP server configuration
+        if (defined('AUTO_SMTP_HOST')) {
+            ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): SMTP URL: '%s'", AUTO_SMTP_HOST));
+            $this->addOutgoingServer($response->emailProvider);
+        }
+
+        // Add CardDav server configuration
+        if (defined('AUTO_CARDDAV_URL')) {
+            ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): CardDav URL: '%s'", AUTO_CARDDAV_URL));
+            $this->addCardCalDavServer($response, 'carddav');
+        }
+
+        // Add CalDav server configuration
+        if (defined('AUTO_CALDAV_URL')) {
+            ZLog::Write(LOGLEVEL_INFO, sprintf("ZPushAutodiscover->createAutoconfigResponse(): CalDav URL: '%s'", AUTO_CALDAV_URL));
+            $this->addCardCalDavServer($response, 'caldav');
+        }
+
+        $response = $response->asXML();
+        ZLog::Write(LOGLEVEL_WBXML, sprintf("ZPushAutodiscover->createAutoconfigResponseResponse(): XML response:%s%s", PHP_EOL, $response));
+        return $response;
+    }
+
+    /**
+     * Adds an incoming server of the given type to the autoconfig response.
+     *
+     * @access private
+     * @param SimpleXMLElement $xmlResponse
+     * @param string $type
+     */
+    private function addIncomingServer($xmlResponse, $type) {
+        $incoming = $xmlResponse->addChild('incomingServer');
+        $incoming->addAttribute('type', $type);
+        $incoming->addChild('hostname', constant('AUTO_' . $type . '_HOST'));
+        $incoming->addChild('port', constant('AUTO_' . $type . '_PORT'));
+
+        if (constant('AUTO_' . $type . '_SSL')) {
+            if ((constant('AUTO_' . $type . '_PORT') == 993) || (constant('AUTO_' . $type . '_PORT') == 995)) {
+                $incoming->addChild('socketType', 'SSL');
+            } else {
+                $incoming->addChild('socketType', 'STARTTLS');
+            }
+        } else {
+            $incoming->addChild('socketType', 'plain');
+        }
+
+        if (USE_FULLEMAIL_FOR_LOGIN) {
+            $incoming->addChild('username', '%EMAILADDRESS%');
+        } else {
+            $incoming->addChild('username', '%EMAILLOCALPART%');
+        }
+
+        if (constant('AUTO_' . $type . '_SPA')) {
+            $incoming->addChild('authentication', 'password-encrypted');
+        } else {
+            $incoming->addChild('authentication', 'password-cleartext');
+        }
+    }
+
+    /**
+     * Adds an outgoing server to the autoconfig response. The outgoing server is 
+     * always an SMTP server.
+     *
+     * @acces private
+     * @param SimpleXMLElement $xmlResponse
+     */
+    private function addOutgoingServer($xmlResponse) {
+        $incoming = $xmlResponse->addChild('outgoingServer');
+        $incoming->addAttribute('type', 'SMTP');
+        $incoming->addChild('hostname', constant('AUTO_SMTP_HOST'));
+        $incoming->addChild('port', constant('AUTO_SMTP_PORT'));
+
+        if (constant('AUTO_SMTP_SSL')) {
+            if (constant('AUTO_SMTP_PORT') == 465) {
+                $incoming->addChild('socketType', 'SSL');
+            } else {
+                $incoming->addChild('socketType', 'STARTTLS');
+            }
+        } else {
+            $incoming->addChild('socketType', 'plain');
+        }
+
+        if (USE_FULLEMAIL_FOR_LOGIN) {
+            $incoming->addChild('username', '%EMAILADDRESS%');
+        } else {
+            $incoming->addChild('username', '%EMAILLOCALPART%');
+        }
+
+        if (constant('AUTO_SMTP_SPA')) {
+            $incoming->addChild('authentication', 'password-encrypted');
+        } else {
+            $incoming->addChild('authentication', 'password-cleartext');
+        }
+    }
+
+    /**
+     * Adds the configuration for a CardDav or CalDav server.
+     *
+     * @access private
+     * @param simpleXMLElement $xmlResponse
+     * @param string $type Possible values: 'carddav', 'caldav'
+     */
+    private function addCardCalDavServer($xmlResponse, $type) {
+        if ($type === 'carddav') {
+            $calCard = $xmlResponse->addChild('addressbook');
+            $calCard->addAttribute('type', 'addressbook');
+            $serverUrl = AUTO_CARDDAV_URL;
+            $authentication = AUTO_CARDDAV_AUTHENTICATION;
+        } elseif ($type === 'caldav') {
+            $calCard = $xmlResponse->addChild('calendar');
+            $calCard->addAttribute('type', 'caldav');
+            $serverUrl = AUTO_CALDAV_URL;
+            $authentication = AUTO_CALDAV_AUTHENTICATION;
+        }
+
+        if (USE_FULLEMAIL_FOR_LOGIN) {
+            $calCard->addChild('username', '%EMAILADDRESS%');
+        } else {
+            $calCard->addChild('username', '%EMAILLOCALPART%');
+        }
+
+        if ($authentication == 'basic') {
+            $calCard->addChild('authentication', 'http-basic');
+        } elseif ($authentication == 'digest') {
+            $calCard->addChild('authentication', 'http-digest');
+        }
+
+        $calCard->addChild('serverURL', $serverUrl);
+    }
+
+    /**
      * Sends the response to the device.
      * @param string $response
      * @access private
@@ -268,7 +442,7 @@ class ZPushAutodiscover {
      */
     private function sendResponse($response) {
         ZLog::Write(LOGLEVEL_DEBUG, "ZPushAutodiscover->sendResponse() sending response...");
-        header("Content-type: text/html");
+        header("Content-type: text/xml");
         $output = fopen("php://output", "w+");
         fwrite($output, $response);
         fclose($output);

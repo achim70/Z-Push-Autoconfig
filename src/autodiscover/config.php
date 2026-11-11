@@ -30,6 +30,18 @@
     // Replace zpush.example.com with your z-push's host name and uncomment the line below.
     // define('ZPUSH_HOST', 'zpush.example.com');
 
+    // Defines the domain for the autoconfiguration
+    // Replace example.com with your domain
+    define('AUTO_DOMAIN', 'example.com');
+
+    // Defines the display name for the autoconfiguration
+    // Replace Example Company with your long display name
+    define('AUTO_DISPLAYNAME', 'Example Company');
+
+    // Defines the short display name for the autoconfiguration
+    // Replace Example with your short display name
+    define('AUTO_SHORTNAME', 'Example');
+
     // Defines the default time zone, change e.g. to "Europe/London" if necessary
     define('TIMEZONE', '');
 
@@ -66,6 +78,88 @@
      *                                          email: first.last@domain.com -> resulting username: f.last
      */
     define('AUTODISCOVER_LOGIN_TYPE', AUTODISCOVER_LOGIN_EMAIL);
+
+/**********************************************************************************
+ *  IMAP Settings
+ */
+
+    // Replace imap.example.com with the URL of your IMAP server
+    // Uncomment the following line if you use an IMAP server
+    //define('AUTO_IMAP_HOST', 'imap.example.com');
+
+    // Defines the port used by the IMAP server
+    define('AUTO_IMAP_PORT', 143);
+
+    // Defines whether secure passwort authentication is used
+    define('AUTO_IMAP_SPA', true);
+
+    // Defines whether SSL is used
+    define('AUTO_IMAP_SSL', true);
+
+    // If set to true IMAP is preferred over POP3, if false, POP3 is preferred
+    define('AUTO_IMAP_PREFERENCE', true);
+
+/**********************************************************************************
+ *  POP3 Settings
+ */
+
+    // Replace pop3.example.com with the URL of your POP3 server
+    // Uncomment the following line if you use a POP3 server
+    //define('AUTO_POP3_HOST', 'pop3.example.com');
+
+    // Defines the port used by the POP3 server
+    define('AUTO_POP3_PORT', 110);
+
+    // Defines whether secure passwort authentication is used
+    define('AUTO_POP3_SPA', true);
+
+    // Defines whether SSL is used
+    define('AUTO_POP3_SSL', true);
+
+/**********************************************************************************
+ *  SMTP Settings
+ */
+
+    // Replace smtp.example.com with the URL of your SMTP server
+    // Uncomment the following line if you use an SMTP server
+    //define('AUTO_SMTP_HOST', 'smtp.example.com');
+
+    // Defines the port used by the SMTP server
+    define('AUTO_SMTP_PORT', 587);
+
+    // Defines whether secure passwort authentication is used
+    define('AUTO_SMTP_SPA', true);
+
+    // Defines whether SSL is used
+    define('AUTO_SMTP_SSL', true);
+
+/**********************************************************************************
+ *  Addressbook Settings
+ */
+
+    // Replace ical.example.com with the URL of your CardDav server
+    // Uncomment the following line if you use a CardDav server
+    //define('AUTO_CARDDAV_URL', 'https://ical.example.com/adressbooks/%EMAILADDRESS%/standard/');
+
+    // Defines the authentication type
+    // Possible values are:
+    //     basic:     HTTP Basic authentication
+    //     digest:    HTTP Digest authentication
+    define('AUTO_CARDDAV_AUTHENTICATION', 'basic');
+
+/**********************************************************************************
+ *  Calendar Settings
+ */
+
+    // Replace ical.example.com with the URL of your CalDav server
+    // Uncomment the following line if you use a CalDav server
+    //define('AUTO_CALDAV_URL', 'https://ical.example.com/calendars/%EMAILADDRESS%/standard/');
+
+    // Defines the authentication type
+    // Possible values are:
+    //     basic:     HTTP Basic authentication
+    //     digest:    HTTP Digest authentication
+    define('AUTO_CALDAV_AUTHENTICATION', 'basic');
 
 /**********************************************************************************
  *  Logging settings
